@@ -44,131 +44,129 @@ function getDocumentData(doc) {
 
 
 
-function renameLayers() 
-{
-  var textFile = new File($.fileName);                                  
-  var textFilePath = Folder.userData + "/" + textFile.name.substring(0, textFile.name.lastIndexOf('.')) + ".jsx - Recent Renames.txt";                                      
-  
-  var previousLayerNames = readFile( textFilePath );                    
-  var dialogText = createDialog( previousLayerNames, textFilePath );
+function renameLayers() {
+    var textFilePath = createTextFilePath($.fileName);
+    var previousLayerNames = readFile(textFilePath);
+    var dialogText = createDialog(previousLayerNames, textFilePath);
 
-  if ( dialogText !== null ) 
-  {
-    
-    var ref = new ActionReference();                                    
-    ref.putEnumerated( charIDToTypeID('Dcmn'), 
-      charIDToTypeID('Ordn'), charIDToTypeID('Trgt') );
-    var desc = executeActionGet(ref);                                   // Gives information about the current instance of Photoshop in the form of key-value pairs
-
-    if ( desc.hasKey(stringIDToTypeID('targetLayers')) )                
-    {
-
-      desc = desc.getList( stringIDToTypeID( 'targetLayers' ));         
-      var c = desc.count;                                               
-      gd.progress.length = c*2;                                         
-      gd.idxs = [];                                                     
-      gd.ascendingNumber = c;
-      gd.descendingNumber = 0;
-
-      if ( appVersion <= cc2014 )                                       
-      {
-        renameLayers(c,desc);
-      }
-      else 
-      {
-        app.doProgress("", "renameLayers(c,desc)");
-      }
-      
-
-      function renameLayers(c, desc ) 
-      {
-        try 
-        {
-
-          for ( var i=0; i<c; i++ ) 
-          {
-            gd.n0 = gd.ascendingNumber-1;     // From 0
-            gd.n1 = gd.ascendingNumber;
-            gd.nn0 = gd.descendingNumber;
-            gd.nn1 = gd.descendingNumber+1;   // From 1
-              
-            var n = 0;
-            // Check if the active Photoshop instance has a background layer, if it does then the value of n remains 0, if it does not then n will be 1
-            try 
-            { 
-              activeDocument.backgroundLayer; 
-            } 
-            catch(e) 
-            { 
-              n = 1; 
-            }
-            
-            var idx = desc.getReference( i ).getIndex()+n;                  // Return object index and add n, the reference object is used to identify a specific element in a Photoshop document, such as a layer
-            gd.idxs.push( idx );                                            
-            var ref2 = new ActionReference();
-            ref2.putIndex(charIDToTypeID('Lyr '), idx);                     // This line sets the index of the reference to the value idx and specifies that it refers to a layer.
-            var desc2 = new ActionDescriptor();
-            desc2.putReference(charIDToTypeID('null'), ref2);
-            desc2.putBoolean(charIDToTypeID('MkVs'), false);
-            executeAction(charIDToTypeID('slct'), desc2, DialogModes.NO);
-            
-            var newName = replacements( gd, dialogText );
-            
-
-
-
-            gd.doc.activeLayer.name = newName;                              // Swaps the name of the active layer to the selected one
-            
-
-
-            --gd.ascendingNumber;
-            ++gd.descendingNumber;
-            ++gd.progress.step;
-
-            if (appVersion > cc2014) app.updateProgress(gd.progress.step, gd.progress.length);
-
-            
-
-
-
-            if (renameAllSublayers)
-            {
-              var activeLayer = app.activeDocument.activeLayer;
-              if (activeLayer.typename == "LayerSet") 
-              {
-                var layersInsideLayerSet = activeLayer.layers;
-                var j = 1
-
-                for (var i = 0; i < layersInsideLayerSet.length; i++) 
-                {
-                  var currentLayer = layersInsideLayerSet[i];
-                  if (currentLayer.typename == "ArtLayer")
-                  {
-                    if (j < 10)
-                    {
-                      currentLayer.name  = activeLayer.name + "_0" + j;
-                    }
-                    else
-                    {
-                      currentLayer.name  = activeLayer.name + "_" + j;
-                    }
-                    j++;
-                  }
-                }
-              } 
-            }
-
-          buildSelectionWithIdxs( gd.idxs );
-
-          } 
-        }
-        catch(e) 
-        {
-        }
-      }
+    if (dialogText === null) {
+        return;
     }
-  }  
+
+    var desc = getTargetLayers();
+
+    if (desc) {
+        prepareForRenaming(desc);
+        renameLayersBasedOnVersion(desc);
+    }
 }
+
+function createTextFilePath(fileName) {
+    var textFile = new File(fileName);
+    
+    return Folder.userData + "/" + textFile.name.substring(0, textFile.name.lastIndexOf('.')) + ".jsx - Recent Renames.txt";
+}
+
+function getTargetLayers() {
+    var ref = new ActionReference();
+    ref.putEnumerated(charIDToTypeID('Dcmn'), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
+    var desc = executeActionGet(ref);
+    
+    return desc.hasKey(stringIDToTypeID('targetLayers')) ? desc.getList(stringIDToTypeID('targetLayers')) : null;
+}
+
+function prepareForRenaming(desc) {
+    var c = desc.count;
+    gd.progress.length = c * 2;
+    gd.idxs = [];
+    gd.ascendingNumber = c;
+    gd.descendingNumber = 0;
+}
+
+function renameLayersBasedOnVersion(desc) {
+    var c = desc.count;
+    
+    if (appVersion <= cc2014) {
+        renameLayersCC2014(c, desc);
+    } else {
+        app.doProgress("", "renameLayersCC2014(c,desc)");
+    }
+}
+
+function renameLayersCC2014(c, desc) {
+    try {
+        for (var i = 0; i < c; i++) {
+            updateCounters();
+            var n = checkBackgroundLayer();
+            selectLayer(desc, i, n);
+            renameLayer(dialogText);
+            if (renameAllSublayers) {
+                renameSublayers();
+            }
+        }
+        buildSelectionWithIdxs(gd.idxs);
+    } catch (e) {}
+}
+
+function updateCounters() {
+    gd.n0 = gd.ascendingNumber - 1;
+    gd.n1 = gd.ascendingNumber;
+    gd.nn0 = gd.descendingNumber;
+    gd.nn1 = gd.descendingNumber + 1;
+}
+
+function checkBackgroundLayer() {
+    try {
+        activeDocument.backgroundLayer;
+        return 0;
+    } catch (e) {
+        return 1;
+    }
+}
+
+function selectLayer(desc, i, n) {
+    var idx = desc.getReference(i).getIndex() + n;
+    
+    gd.idxs.push(idx);
+    
+    var ref2 = new ActionReference();
+    ref2.putIndex(charIDToTypeID('Lyr '), idx);
+    var desc2 = new ActionDescriptor();
+    desc2.putReference(charIDToTypeID('null'), ref2);
+    desc2.putBoolean(charIDToTypeID('MkVs'), false);
+    
+    executeAction(charIDToTypeID('slct'), desc2, DialogModes.NO);
+}
+
+function renameLayer(dialogText) {
+    var newName = replacements(gd, dialogText);
+    gd.doc.activeLayer.name = newName;
+    --gd.ascendingNumber;
+    ++gd.descendingNumber;
+    ++gd.progress.step;
+    
+    if (appVersion > cc2014) app.updateProgress(gd.progress.step, gd.progress.length);
+}
+
+function renameSublayers() {
+    var activeLayer = app.activeDocument.activeLayer;
+    
+    if (activeLayer.typename == "LayerSet") {
+        var layersInsideLayerSet = activeLayer.layers;
+        var j = 1;
+        
+        for (var i = 0; i < layersInsideLayerSet.length; i++) {
+            var currentLayer = layersInsideLayerSet[i];
+            
+            if (currentLayer.typename == "ArtLayer") {
+                var suffix = (j < 10) ? "_0" + j : "_" + j;
+                currentLayer.name = activeLayer.name + suffix;
+                j++;
+            }
+        }
+    }
+}
+
 
 
 // Builds selection from an array of Indexes
@@ -183,7 +181,9 @@ function buildSelectionWithIdxs( idxs )
     ref.putIndex(charIDToTypeID('Lyr '), idxs[i] + n);
     var desc = new ActionDescriptor();
     desc.putReference(charIDToTypeID('null'), ref);
+    
     if ( add ) desc.putEnumerated( stringIDToTypeID('selectionModifier'), stringIDToTypeID('selectionModifierType'), stringIDToTypeID('addToSelection'));
+    
     desc.putBoolean(charIDToTypeID('MkVs'), false);
     executeAction(charIDToTypeID('slct'), desc, DialogModes.NO);
 
@@ -836,5 +836,4 @@ function loadItemsFromFile(filePath, callback)
 
   callback(items);
 }
-
 
