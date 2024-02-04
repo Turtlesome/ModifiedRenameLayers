@@ -1,37 +1,46 @@
 #target photoshop
 var renameAllSublayers = false;
 
-if ( app.documents.length > 0 )                                                           
-{
+var renameAllSublayers = false;
 
-  var gd = {};                                                                            
-  gd.doc = app.activeDocument;                                                            
-  gd.docName = gd.doc.name;                                                               
-  gd.docWidth = parseInt( gd.doc.width.value, 10);                                        
-  gd.docHeight = parseInt( gd.doc.height.value, 10);                                      
-  gd.rulerUnits = app.preferences.rulerUnits.toString().split('.')[1].toLowerCase();      
-  gd.date = new Date();
-  gd.year = gd.date.getFullYear();
-  gd.month = gd.date.getMonth()+1;                                                        
-  gd.month0 = ("0" + (gd.date.getMonth()+1)).slice(-2);                                   
-  gd.day = gd.date.getDate();                                                             
-  gd.day0 = ("0" + (gd.date.getDate())).slice(-2);
-  gd.ascendingNumber = '$';                                                               
-  gd.descendingNumber = '$';
-  gd.n0 = '0' + String.fromCharCode('0x2193');                                            // $↓
-  gd.n1 = '1' + String.fromCharCode('0x2193');
-  gd.nn0 = '0' + String.fromCharCode('0x2191');                                           // $↑
-  gd.nn1 = '1' + String.fromCharCode('0x2191');
-  gd.progress = {
-    length: 0,
-    step: 0
-  };
+if (app.documents.length > 0) {
+    var gd = getDocumentData(app.activeDocument);
+    var appVersion = parseInt(app.version);
+    var cc2014 = 15;
 
-  var appVersion = parseInt( app.version );                                               
-  var cc2014 = 15;                                                                        
-
-  app.activeDocument.suspendHistory("Rename Layers (script)", "renameLayers()");          
+    app.activeDocument.suspendHistory("Rename Layers (script)", "renameLayers()");
 }
+
+function getDocumentData(doc) {
+    var date = new Date();
+    var month = date.getMonth() + 1;
+    var day = date.getDate();
+
+    return {
+        doc: doc,
+        docName: doc.name,
+        docWidth: parseInt(doc.width.value, 10),
+        docHeight: parseInt(doc.height.value, 10),
+        rulerUnits: app.preferences.rulerUnits.toString().split('.')[1].toLowerCase(),
+        date: date,
+        year: date.getFullYear(),
+        month: month,
+        month0: ("0" + month).slice(-2),
+        day: day,
+        day0: ("0" + day).slice(-2),
+        ascendingNumber: '$',
+        descendingNumber: '$',
+        n0: '0' + String.fromCharCode('0x2193'), // $↓
+        n1: '1' + String.fromCharCode('0x2193'),
+        nn0: '0' + String.fromCharCode('0x2191'), // $↑
+        nn1: '1' + String.fromCharCode('0x2191'),
+        progress: {
+            length: 0,
+            step: 0
+        }
+    };
+}
+
 
 
 
